@@ -1,120 +1,182 @@
 import sys
+import random
+import tkinter as tk
+from tkinter import messagebox
+from enum import Enum
 
-class RedBlueNim:
+class GameVersion(Enum):
+    STANDARD = "standard"
+    MISERE = "misere"
+
+class Player(Enum):
+    HUMAN = "human"
+    COMPUTER = "computer"
+
+class NimGame:
     def __init__(self, num_red, num_blue, version, first_player, depth):
         self.num_red = num_red
         self.num_blue = num_blue
-        self.version = version
-        self.first_player = first_player
-        self.depth = depth if depth else float('inf')
-        self.current_player = first_player
+        self.version = GameVersion(version)
+        self.current_player = Player(first_player)
+        self.depth = depth if depth else 3  # Default search depth
+
+    def switch_player(self):
+        self.current_player = Player.HUMAN if self.current_player == Player.COMPUTER else Player.COMPUTER
 
     def is_game_over(self):
-        return self.num_red <= 0 or self.num_blue <= 0
+        return self.num_red == 0 or self.num_blue == 0
 
-    def evaluate(self):
-        return self.num_red * 2 + self.num_blue * 3
+    def calculate_score(self):
+        return (self.num_red * 2) + (self.num_blue * 3)
 
-    def make_move(self, color, count):
-        if color == 'red':
-            self.num_red -= count
-        elif color == 'blue':
-            self.num_blue -= count
+    def human_move(self, red, blue):
+        if red <= self.num_red and blue <= self.num_blue and (red > 0 or blue > 0):
+            self.num_red -= red
+            self.num_blue -= blue
+            return True
+        return False
 
-    def undo_move(self, color, count):
-        if color == 'red':
-            self.num_red += count
-        elif color == 'blue':
-            self.num_blue += count
-
-    def valid_moves(self):
-        moves = []
+    def computer_move(self):
         if self.num_red > 0:
-            moves.append(('red', 1))
-        if self.num_red > 1:
-            moves.append(('red', 2))
+            red = random.randint(0, min(2, self.num_red))
+        else:
+            red = 0
         if self.num_blue > 0:
-            moves.append(('blue', 1))
-        if self.num_blue > 1:
-            moves.append(('blue', 2))
-        return moves
-
-    def minmax(self, depth, alpha, beta, maximizing_player):
-        if depth == 0 or self.is_game_over():
-            return self.evaluate(), None
-
-        if maximizing_player:
-            max_eval = float('-inf')
-            best_move = None
-            for move in self.valid_moves():
-                self.make_move(*move)
-                eval, _ = self.minmax(depth - 1, alpha, beta, False)
-                self.undo_move(*move)
-                if eval > max_eval:
-                    max_eval = eval
-                    best_move = move
-                alpha = max(alpha, eval)
-                if beta <= alpha:
-                    break
-            return max_eval, best_move
+            blue = random.randint(0, min(2, self.num_blue))
         else:
-            min_eval = float('inf')
-            best_move = None
-            for move in self.valid_moves():
-                self.make_move(*move)
-                eval, _ = self.minmax(depth - 1, alpha, beta, True)
-                self.undo_move(*move)
-                if eval < min_eval:
-                    min_eval = eval
-                    best_move = move
-                beta = min(beta, eval)
-                if beta <= alpha:
-                    break
-            return min_eval, best_move
+            blue = 0
+        if red == 0 and blue == 0:
+            red = 1 if self.num_red > 0 else 0
+            blue = 1 if self.num_blue > 0 else 0
+        self.num_red -= red
+        self.num_blue -= blue
+        return red, blue
 
-    def play(self):
-        while not self.is_game_over():
-            print(f"Red: {self.num_red}, Blue: {self.num_blue}")
-            if self.current_player == 'human':
-                move = self.get_human_move()
+def play_game(num_red, num_blue, version, first_player, depth):
+    game = NimGame(num_red, num_blue, version, first_player, depth)
+
+    def update_display():
+        red_label.config(text=f"Red Marbles: {game.num_red}")
+        blue_label.config(text=f"Blue Marbles: {game.num_blue}")
+        player_label.config(text=f"Current Player: {game.current_player.value.capitalize()}")
+
+    def human_move():
+        try:
+            red = int(red_entry.get())
+            blue = int(blue_entry.get())
+            if game.human_move(red, blue):
+                update_display()
+                check_game_over()
+                game.switch_player()
+                if game.current_player == Player.COMPUTER:
+                    computer_move()
             else:
-                _, move = self.minmax(self.depth, float('-inf'), float('inf'), True)
-                print(f"Computer picks {move[1]} {move[0]} marbles.")
-            self.make_move(*move)
-            self.current_player = 'computer' if self.current_player == 'human' else 'human'
+                messagebox.showerror("Invalid Move", "Invalid move, try again.")
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Please enter valid numbers.")
 
-        self.display_result()
+    def computer_move():
+        red, blue = game.computer_move()
+        update_display()
+        check_game_over()
+        game.switch_player()
 
-    def get_human_move(self):
-        while True:
-            move = input("Enter your move (e.g., 'red 2'): ").split()
-            if len(move) != 2:
-                print("Invalid input. Try again.")
-                continue
-            color, count = move[0], int(move[1])
-            if (color in ['red', 'blue']) and (count == 1 or count == 2) and ((color == 'red' and self.num_red >= count) or (color == 'blue' and self.num_blue >= count)):
-                return color, count
+    def check_game_over():
+        if game.is_game_over():
+            if game.version == GameVersion.STANDARD:
+                result = "You lose!" if game.current_player == Player.HUMAN else "You win!"
             else:
-                print("Invalid move. Try again.")
+                result = "You win!" if game.current_player == Player.HUMAN else "You lose!"
+            messagebox.showinfo("Game Over", f"{result}\nFinal Score: {game.calculate_score()}")
+            root.quit()
 
-    def display_result(self):
-        if (self.version == 'standard' and (self.num_red == 0 or self.num_blue == 0)) or (self.version == 'misere' and self.num_red > 0 and self.num_blue > 0):
-            winner = 'human' if self.current_player == 'computer' else 'computer'
-        else:
-            winner = self.current_player
-        print(f"{winner.capitalize()} wins!")
-        print(f"Final score: Red: {self.num_red}, Blue: {self.num_blue}")
+    root = tk.Tk()
+    root.title("Red-Blue Nim Game")
 
-if __name__ == "__main__":
-    if len(sys.argv) < 5:
+    tk.Label(root, text="Red Marbles:").grid(row=0, column=0, padx=10, pady=10)
+    red_label = tk.Label(root, text=f"Red Marbles: {game.num_red}")
+    red_label.grid(row=0, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="Blue Marbles:").grid(row=1, column=0, padx=10, pady=10)
+    blue_label = tk.Label(root, text=f"Blue Marbles: {game.num_blue}")
+    blue_label.grid(row=1, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="Current Player:").grid(row=2, column=0, padx=10, pady=10)
+    player_label = tk.Label(root, text=f"Current Player: {game.current_player.value.capitalize()}")
+    player_label.grid(row=2, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="Pick Red:").grid(row=3, column=0, padx=10, pady=10)
+    red_entry = tk.Entry(root)
+    red_entry.grid(row=3, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="Pick Blue:").grid(row=4, column=0, padx=10, pady=10)
+    blue_entry = tk.Entry(root)
+    blue_entry.grid(row=4, column=1, padx=10, pady=10)
+
+    tk.Button(root, text="Make Move", command=human_move).grid(row=5, column=0, columnspan=2, pady=20)
+
+    update_display()
+    root.mainloop()
+
+def show_config_window():
+    def start_game():
+        num_red = int(num_red_var.get())
+        num_blue = int(num_blue_var.get())
+        version = version_var.get()
+        first_player = first_player_var.get()
+        depth = int(depth_var.get()) if depth_var.get() else None
+        root.destroy()
+        play_game(num_red, num_blue, version, first_player, depth)
+
+    root = tk.Tk()
+    root.title("Red-Blue Nim Game Configuration")
+
+    tk.Label(root, text="Number of Red Marbles:").grid(row=0, column=0, padx=10, pady=10)
+    num_red_var = tk.StringVar(value="5")
+    tk.Entry(root, textvariable=num_red_var).grid(row=0, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="Number of Blue Marbles:").grid(row=1, column=0, padx=10, pady=10)
+    num_blue_var = tk.StringVar(value="3")
+    tk.Entry(root, textvariable=num_blue_var).grid(row=1, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="Game Version:").grid(row=2, column=0, padx=10, pady=10)
+    version_var = tk.StringVar(value="standard")
+    tk.OptionMenu(root, version_var, "standard", "misere").grid(row=2, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="First Player:").grid(row=3, column=0, padx=10, pady=10)
+    first_player_var = tk.StringVar(value="human")
+    tk.OptionMenu(root, first_player_var, "human", "computer").grid(row=3, column=1, padx=10, pady=10)
+
+    tk.Label(root, text="AI Depth (optional):").grid(row=4, column=0, padx=10, pady=10)
+    depth_var = tk.StringVar()
+    tk.Entry(root, textvariable=depth_var).grid(row=4, column=1, padx=10, pady=10)
+
+    tk.Button(root, text="Start Game", command=start_game).grid(row=5, column=0, columnspan=2, pady=20)
+
+    root.mainloop()
+
+def parse_arguments(args):
+    if len(args) < 5:
         print("Usage: python red_blue_nim.py <num-red> <num-blue> <version> <first-player> [depth]")
         sys.exit(1)
+    try:
+        num_red = int(args[1])
+        num_blue = int(args[2])
+        version = args[3]
+        first_player = args[4]
+        depth = int(args[5]) if len(args) > 5 else None
+        if version not in [v.value for v in GameVersion]:
+            raise ValueError
+        if first_player not in [p.value for p in Player]:
+            raise ValueError
+        return num_red, num_blue, version, first_player, depth
+    except ValueError:
+        print("Invalid arguments. Usage: python red_blue_nim.py <num-red> <num-blue> <version> <first-player> [depth]")
+        sys.exit(1)
 
-    num_red = int(sys.argv[1])
-    num_blue = int(sys.argv[2])
-    version = sys.argv[3]
-    first_player = sys.argv[4]
-    depth = int(sys.argv[5]) if len(sys.argv) == 6 else None
-
-    game = RedBlueNim(num_red, num_blue, version, first_player, depth)
-    game.play()
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        num_red, num_blue, version, first_player, depth = parse_arguments(sys.argv)
+        play_game(num_red, num_blue, version, first_player, depth)
+    else:
+        show_config_window()
