@@ -15,7 +15,7 @@ def fetch_webpage(url):
     """
     try:
         response = requests.get(url)
-        response.raise_for_status()  # Check that the request was successful
+        response.raise_for_status() 
         return BeautifulSoup(response.text, 'html.parser')
     except requests.RequestException as e:
         print(f"Error fetching the webpage: {e}")
@@ -23,15 +23,6 @@ def fetch_webpage(url):
 
 
 def extract_books_data(soup):
-    """
-    Extract book data from the parsed HTML content.
-
-    Args:
-    soup (BeautifulSoup object): Parsed HTML content of the page.
-
-    Returns:
-    list of dict: List of books with title, author, and price.
-    """
     books_data = []
     books = soup.find_all('div', class_='book')
 
@@ -48,13 +39,6 @@ def extract_books_data(soup):
 
 
 def save_to_csv(data, filename):
-    """
-    Save extracted data to a CSV file.
-
-    Args:
-    data (list of dict): Data to be saved.
-    filename (str): Name of the CSV file.
-    """
     try:
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = ['Title', 'Author', 'Price']
@@ -68,7 +52,7 @@ def save_to_csv(data, filename):
 
 
 def main():
-    url = 'http://example.com/books'  # Replace with the actual URL
+    url = 'http://example.com/books'
     soup = fetch_webpage(url)
     if soup:
         books_data = extract_books_data(soup)
